@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>Kukátko</string>
+	<key>CFBundleDisplayName</key><string>Kukátko</string>
+	<key>CFBundleIdentifier</key><string>cz.filipskluzacek.kukatko</string>
+	<key>CFBundleExecutable</key><string>Kukatko</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>1.0</string>
+	<key>CFBundleVersion</key><string>__BUILD__</string>
+	<key>CFBundleDevelopmentRegion</key><string>cs</string>
+	<key>LSMinimumSystemVersion</key><string>26.0</string>
+	<key>LSUIElement</key><true/>
+	<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+	<key>NSHumanReadableCopyright</key><string>© 2026 Filip Skluzáček</string>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key><dict><key>default</key><string>Kukátko: Vysvětlit krátce</string></dict>
+			<key>NSMessage</key><string>explainShort</string>
+			<key>NSPortName</key><string>Kukatko</string>
+			<key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>public.tiff</string><string>public.png</string></array>
+			<key>NSSendFileTypes</key><array><string>public.image</string></array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key><dict><key>default</key><string>Kukátko: Vysvětlit dlouze</string></dict>
+			<key>NSMessage</key><string>explainLong</string>
+			<key>NSPortName</key><string>Kukatko</string>
+			<key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>public.tiff</string><string>public.png</string></array>
+			<key>NSSendFileTypes</key><array><string>public.image</string></array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key><dict><key>default</key><string>Kukátko: Najít obrázek</string></dict>
+			<key>NSMessage</key><string>findImage</string>
+			<key>NSPortName</key><string>Kukatko</string>
+			<key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>public.tiff</string><string>public.png</string></array>
+			<key>NSSendFileTypes</key><array><string>public.image</string></array>
+		</dict>
+	</array>
+</dict>
+</plist>
