@@ -45,8 +45,9 @@ enum Prompts {
 
     static let keywordsSystem = """
     Navrhuješ dotazy pro vyhledávání obrázků. Vrať jen JSON objekt bez dalšího textu ve tvaru \
-    {"cs": "...", "en": "..."} – v každém krátký dotaz o 1 až 4 slovech, který najde fotku nebo ilustraci \
-    toho hlavního, o čem označený obsah je (konkrétní věc, osoba, místo, druh, pojem). Žádné uvozovky uvnitř.
+    {"cs": "...", "en": "..."}. Každý dotaz má 1 až 3 slova a jmenuje JEN hlavní věc, kterou chce \
+    člověk vidět (konkrétní druh, předmět, osobu, stavbu, pojem) v základním tvaru. Nepřidávej místo, \
+    čas ani okolnosti. Příklad: „Včera jsme u Vltavy viděli ledňáčka“ → {"cs": "ledňáček říční", "en": "common kingfisher"}.
     """
 
     static func keywordsQuestion(for c: Captured) -> AIMessage {

@@ -37,6 +37,9 @@ final class ResultController: NSObject, NSWindowDelegate {
         installOutsideMonitor()
     }
 
+    /// Keeps the panel open on outside clicks (used by the test hook).
+    func pin() { model?.pinned = true }
+
     func close() {
         model?.cancelAll()
         removeOutsideMonitor()
@@ -257,18 +260,24 @@ final class ResultModel: ObservableObject {
 
     private func search(_ q: String, slot: Int, finishLoading: Bool) {
         let lang = Settings.shared.language.lowercased().hasPrefix("angl") ? "en" : "cs"
-        let t = Task { [weak self] in
-            let hits = await ImageSearch.search(q, language: lang)
-            if Task.isCancelled { return }
-            await MainActor.run {
-                guard let self else { return }
-                self.slots[slot] = hits
-                var seen = Set<URL>()
-                self.images = self.slots.keys.sorted().flatMap { self.slots[$0]! }.filter { seen.insert($0.full).inserted }
-                if finishLoading { self.imagesLoading = false }
+        let srcs = ImageSearch.sources(q, language: lang)
+        var pending = srcs.count
+        for (i, src) in srcs.enumerated() {
+            let t = Task { [weak self] in
+                let hits = await src()
+                if Task.isCancelled { return }
+                await MainActor.run {
+                    guard let self else { return }
+                    self.slots[slot * 10 + i] = hits
+                    var seen = Set<String>()
+                    self.images = self.slots.keys.sorted().flatMap { self.slots[$0]! }
+                        .filter { seen.insert($0.full.lastPathComponent.lowercased()).inserted }
+                    pending -= 1
+                    if finishLoading && pending == 0 { self.imagesLoading = false }
+                }
             }
+            tasks.append(t)
         }
-        tasks.append(t)
     }
 
     var currentAnswerText: String {
@@ -524,16 +533,20 @@ struct ImageCell: View {
     @State private var hover = false
 
     var body: some View {
-        AsyncImage(url: hit.thumb, transaction: Transaction(animation: .easeOut(duration: 0.35))) { phase in
-            switch phase {
-            case .success(let img): img.resizable().scaledToFill()
-            case .failure: Color.primary.opacity(0.05).overlay(Image(systemName: "photo").foregroundStyle(.tertiary))
-            default: Color.primary.opacity(0.05)
+        // Fixed-size cell; the image fills it without pushing the grid apart.
+        Color.primary.opacity(0.05)
+            .frame(maxWidth: .infinity)
+            .frame(height: 110)
+            .overlay {
+                AsyncImage(url: hit.thumb, transaction: Transaction(animation: .easeOut(duration: 0.35))) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().scaledToFill()
+                    case .failure: Image(systemName: "photo").foregroundStyle(.tertiary)
+                    default: Color.clear
+                    }
+                }
             }
-        }
-        .frame(height: 110)
-        .frame(maxWidth: .infinity)
-        .clipped()
+            .clipped()
         .overlay(alignment: .bottomLeading) {
             if hover {
                 Text(hit.source)

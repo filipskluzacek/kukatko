@@ -54,6 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.captureScreenRegion()
         }
 
+        // Diagnostics: Kukatko --stav  → prints permission/key state and quits.
+        if CommandLine.arguments.contains("--stav") {
+            let line = "zpristupneni=\(Permissions.accessibilityGranted) klic=\(Settings.shared.geminiKey != nil) sluzba=\(Settings.shared.backend.rawValue)\n"
+            print(line, terminator: "")
+            try? line.write(toFile: NSTemporaryDirectory() + "kukatko-stav.txt", atomically: true, encoding: .utf8)
+            exit(0)
+        }
+
         // Test hook: Kukatko --ukazka "text" [short|long|images]  /  --ukazka-obrazek /cesta.png [mode]
         let args = CommandLine.arguments
         if let i = args.firstIndex(where: { $0 == "--ukazka" || $0 == "--ukazka-obrazek" }), i + 1 < args.count {
@@ -65,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let screen = NSScreen.main!.visibleFrame
                 let anchor = NSRect(x: screen.midX - 230, y: screen.midY + 260, width: 120, height: 18)
                 result.open(Captured(content: content, app: nil, anchor: anchor, context: nil), mode: mode)
+                result.pin()
                 pill.show(for: Captured(content: content, app: nil, anchor: NSRect(x: anchor.minX, y: anchor.maxY + 70, width: 120, height: 18), context: nil), force: true)
             }
             // --snimek <složka> <sekundy>: snapshot our own windows to PNG (no screen-recording permission needed).

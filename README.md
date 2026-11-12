@@ -31,7 +31,7 @@ V panelu: **Esc** zavře, špendlík ho nechá otevřený, dole se dá ptát dá
 
 ## Soukromí
 
-Označený text nebo obrázek se posílá do Google Gemini. Google smí dotazy z bezplatné úrovně používat ke zlepšování svých služeb, proto do Kukátka neposílejte citlivé údaje. Hesla (zabezpečená pole) Kukátko nečte nikdy. Obrázky se hledají na Wikipedii, Wikimedia Commons a Openverse. Klíče se ukládají do Klíčenky.
+Označený text nebo obrázek se posílá do Google Gemini. Google smí dotazy z bezplatné úrovně používat ke zlepšování svých služeb, proto do Kukátka neposílejte citlivé údaje. Hesla (zabezpečená pole) Kukátko nečte nikdy. Obrázky se hledají na Wikipedii, Wikimedia Commons a Openverse. Klíče zůstávají jen na vašem Macu (soubor čitelný jen pro vašeho uživatele).
 
 V Nastavení jde místo Gemini zapnout Claude (přes Claude Code nebo placený API klíč).
 

@@ -15,14 +15,20 @@ struct ImageHit: Identifiable, Hashable {
 enum ImageSearch {
     private static let ua = "Kukatko/1.0 (macOS image lookup)"
 
-    static func search(_ query: String, language: String = "cs") async -> [ImageHit] {
+    /// Each source separately, in display order, so results can appear as soon as one answers.
+    static func sources(_ query: String, language: String = "cs") -> [() async -> [ImageHit]] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
-        async let wikiLocal = wikipedia(q, lang: language)
-        async let wikiEn = language == "en" ? [] : wikipedia(q, lang: "en")
-        async let commons = commons(q)
-        async let openverse = openverse(q)
-        let all = await wikiLocal + wikiEn + commons + openverse
+        var list: [() async -> [ImageHit]] = [{ await wikipedia(q, lang: language) }]
+        if language != "en" { list.append { await wikipedia(q, lang: "en") } }
+        list.append { await commons(q) }
+        list.append { await openverse(q) }
+        return list
+    }
+
+    static func search(_ query: String, language: String = "cs") async -> [ImageHit] {
+        var all: [ImageHit] = []
+        for src in sources(query, language: language) { all += await src() }
         var seen = Set<String>()
         return all.filter { seen.insert($0.full.lastPathComponent.lowercased()).inserted }
     }
@@ -30,7 +36,7 @@ enum ImageSearch {
     private static func get(_ url: URL) async -> [String: Any]? {
         var req = URLRequest(url: url)
         req.setValue(ua, forHTTPHeaderField: "User-Agent")
-        req.timeoutInterval = 12
+        req.timeoutInterval = 8
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]

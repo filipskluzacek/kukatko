@@ -46,7 +46,9 @@ enum AIClient {
         switch s.backend {
         case .gemini:
             guard let key = s.geminiKey else { return failing(AIError.noGeminiKey) }
-            return GeminiBackend.stream(key: key, model: s.geminiModel, system: system, messages: messages, json: json)
+            let fast = effort == "low" && !messages.contains { $0.image != nil }
+            return GeminiBackend.stream(key: key, models: fast ? GeminiBackend.fastModels : GeminiBackend.smartModels,
+                                        system: system, messages: messages, json: json)
         case .cli:
             guard let cli = CLIBackend.executable else { return failing(AIError.noBackend) }
             return CLIBackend.stream(exe: cli, model: s.model, system: system, messages: messages, effort: effort)
@@ -246,23 +248,29 @@ enum CLIBackend {
 
 enum GeminiBackend {
     static let keyPage = URL(string: "https://aistudio.google.com/apikey")!
-    /// Tried in order when a model isn't available for the key.
-    static let fallbacks = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"]
+    /// Free-tier models, tried in order. Quotas are per model, so an overloaded or exhausted one falls through to the next.
+    /// (Measured 12. 11. 2026: 3.6-flash and 3.5-flash-lite answer within ~1 s; 3.8-flash was often overloaded.)
+    static let fastModels = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
+    static let smartModels = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
 
-    static func stream(key: String, model: String, system: String, messages: [AIMessage], json: Bool) -> AsyncThrowingStream<String, Error> {
+    static func stream(key: String, models: [String], system: String, messages: [AIMessage], json: Bool) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
-                var models = [model] + fallbacks.filter { $0 != model }
                 var lastError: Error = AIError.message("Gemini neodpověděl.")
-                while !models.isEmpty {
-                    let m = models.removeFirst()
+                for m in models {
+                    var yielded = false
                     do {
-                        try await run(key: key, model: m, system: system, messages: messages, json: json) { continuation.yield($0) }
-                        if m != model { Settings.shared.geminiModel = m }
+                        try await run(key: key, model: m, system: system, messages: messages, json: json) {
+                            yielded = true
+                            continuation.yield($0)
+                        }
                         continuation.finish()
                         return
-                    } catch GeminiError.modelUnavailable(let msg) {
-                        lastError = AIError.message("Model \(m) není dostupný: \(msg)")
+                    } catch GeminiError.tryNext(let err) where !yielded {
+                        lastError = err
+                        continue
+                    } catch let err as URLError where !yielded && err.code == .timedOut {
+                        lastError = AIError.message("Gemini neodpovídá. Zkuste to za chvilku znovu.")
                         continue
                     } catch {
                         continuation.finish(throwing: error)
@@ -275,14 +283,14 @@ enum GeminiBackend {
         }
     }
 
-    private enum GeminiError: Error { case modelUnavailable(String) }
+    private enum GeminiError: Error { case tryNext(Error) }
 
     private static func run(key: String, model: String, system: String, messages: [AIMessage], json: Bool, yield: (String) -> Void) async throws {
         var c = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):streamGenerateContent")!
         c.queryItems = [.init(name: "alt", value: "sse")]
         var req = URLRequest(url: c.url!)
         req.httpMethod = "POST"
-        req.timeoutInterval = 120
+        req.timeoutInterval = 20 // idle timeout: an overloaded model that hangs gets skipped
         req.setValue("application/json", forHTTPHeaderField: "content-type")
         req.setValue(key, forHTTPHeaderField: "x-goog-api-key")
 
@@ -294,7 +302,7 @@ enum GeminiBackend {
             parts.append(["text": m.text])
             return ["role": m.role == .user ? "user" : "model", "parts": parts]
         }
-        var gen: [String: Any] = ["temperature": 0.4]
+        var gen: [String: Any] = ["temperature": 0.4, "thinkingConfig": ["thinkingLevel": "minimal"]]
         if json { gen["responseMimeType"] = "application/json" }
         let body: [String: Any] = [
             "systemInstruction": ["parts": [["text": system]]],
@@ -311,14 +319,14 @@ enum GeminiBackend {
             let err = (try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])?["error"] as? [String: Any]
             let msg = err?["message"] as? String ?? raw
             let st = err?["status"] as? String ?? ""
-            if status == 404 || (status == 400 && msg.lowercased().contains("model")) && !msg.contains("API key") {
-                throw GeminiError.modelUnavailable(msg)
-            }
-            if status == 429 || st == "RESOURCE_EXHAUSTED" {
-                throw AIError.message("Bezplatný limit Gemini je na chvíli vyčerpaný. Zkuste to za minutu, případně zítra.")
-            }
             if status == 400 && msg.contains("API key") || status == 401 || status == 403 {
                 throw AIError.message("Klíč ke Gemini nefunguje. Zkontrolujte ho v Nastavení (\(msg)).")
+            }
+            if status == 429 || st == "RESOURCE_EXHAUSTED" {
+                throw GeminiError.tryNext(AIError.message("Bezplatný limit Gemini je na chvíli vyčerpaný. Zkuste to za minutu, případně zítra."))
+            }
+            if status == 404 || status >= 500 {
+                throw GeminiError.tryNext(AIError.message("Gemini je teď přetížený. Zkuste to za chvilku znovu."))
             }
             throw AIError.message("Gemini hlásí chybu \(status): \(msg)")
         }

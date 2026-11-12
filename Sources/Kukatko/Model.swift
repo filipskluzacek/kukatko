@@ -1,6 +1,5 @@
 import AppKit
 import ApplicationServices
-import Security
 
 enum Content {
     case text(String)
@@ -76,7 +75,6 @@ final class Settings {
             "pillOnImageCopy": true,
             "model": AIModel.opus.rawValue,
             "backend": Backend.gemini.rawValue,
-            "geminiModel": "gemini-3.8-flash",
             "language": "česky",
         ])
     }
@@ -106,67 +104,61 @@ final class Settings {
         set { d.set(newValue, forKey: "excludedApps") }
     }
 
-    var geminiModel: String {
-        get { d.string(forKey: "geminiModel") ?? "gemini-3.8-flash" }
-        set { d.set(newValue, forKey: "geminiModel") }
-    }
     var geminiKey: String? {
-        get { Keychain.read(account: "gemini-api-key") }
+        get { SecretStore.read(account: "gemini-api-key") }
         set {
             if let v = newValue?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty {
-                Keychain.write(v, account: "gemini-api-key")
+                SecretStore.write(v, account: "gemini-api-key")
             } else {
-                Keychain.delete(account: "gemini-api-key")
+                SecretStore.delete(account: "gemini-api-key")
             }
         }
     }
 
     var apiKey: String? {
-        get { Keychain.read(account: "anthropic-api-key") }
+        get { SecretStore.read(account: "anthropic-api-key") }
         set {
             if let v = newValue?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty {
-                Keychain.write(v, account: "anthropic-api-key")
+                SecretStore.write(v, account: "anthropic-api-key")
             } else {
-                Keychain.delete(account: "anthropic-api-key")
+                SecretStore.delete(account: "anthropic-api-key")
             }
         }
     }
 }
 
-enum Keychain {
-    private static let service = "cz.filipskluzacek.kukatko"
-
-    static func read(account: String) -> String? {
-        let q: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+/// API keys live in a small file only this user can read (0600). The login keychain would ask
+/// for access again after every app update, which is miserable for people installing new versions.
+enum SecretStore {
+    private static var url: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Kukatko", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        }
+        return dir.appendingPathComponent("klice.json")
     }
 
+    private static func load() -> [String: String] {
+        guard let data = try? Data(contentsOf: url),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { return [:] }
+        return obj
+    }
+
+    private static func save(_ dict: [String: String]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys]) else { return }
+        FileManager.default.createFile(atPath: url.path, contents: data, attributes: [.posixPermissions: 0o600])
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    static func read(account: String) -> String? { load()[account] }
+
     static func write(_ value: String, account: String) {
-        delete(account: account)
-        let q: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: Data(value.utf8),
-        ]
-        SecItemAdd(q as CFDictionary, nil)
+        var d = load(); d[account] = value; save(d)
     }
 
     static func delete(account: String) {
-        let q: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(q as CFDictionary)
+        var d = load(); d.removeValue(forKey: account); save(d)
     }
 }
 

@@ -4,7 +4,6 @@ import ServiceManagement
 struct SettingsView: View {
     @State private var geminiKey = Settings.shared.geminiKey ?? ""
     @State private var geminiSaved = Settings.shared.geminiKey != nil
-    @State private var geminiModel = Settings.shared.geminiModel
     @State private var apiKey = Settings.shared.apiKey ?? ""
     @State private var keySaved = Settings.shared.apiKey != nil
     @State private var model = Settings.shared.model
@@ -37,10 +36,6 @@ struct SettingsView: View {
                 switch backend {
                 case .gemini:
                     GeminiKeyField(key: $geminiKey, saved: $geminiSaved)
-                    Picker("Model", selection: $geminiModel) {
-                        ForEach(GeminiBackend.fallbacks, id: \.self) { Text($0).tag($0) }
-                    }
-                    .onChange(of: geminiModel) { _, v in Settings.shared.geminiModel = v }
                     Text("Bezplatná úroveň Google AI Studia: stačí účet Google, platební karta není potřeba. Google smí dotazy z bezplatné úrovně použít ke zlepšování svých služeb, proto do Kukátka neposílejte citlivé údaje.")
                         .font(.caption).foregroundStyle(.secondary)
                 case .cli:
@@ -59,7 +54,7 @@ struct SettingsView: View {
                         .disabled(keySaved && apiKey == (Settings.shared.apiKey ?? ""))
                     }
                     .onChange(of: apiKey) { _, _ in keySaved = false }
-                    Text("Nejchytřejší, ale každý dotaz se platí. Klíč se ukládá do Klíčenky.")
+                    Text("Nejchytřejší, ale každý dotaz se platí.")
                         .font(.caption).foregroundStyle(.secondary)
                     claudeModelPicker
                 }
