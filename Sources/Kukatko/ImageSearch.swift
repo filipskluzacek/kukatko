@@ -11,7 +11,7 @@ struct ImageHit: Identifiable, Hashable {
     let height: Int
 }
 
-/// Keyless image sources: Wikipedia lead images, Wikimedia Commons and Openverse.
+/// Keyless image sources: the whole web via DuckDuckGo Images, then Wikipedia and Wikimedia Commons as extras.
 enum ImageSearch {
     private static let ua = "Kukatko/1.0 (macOS image lookup)"
 
@@ -19,10 +19,10 @@ enum ImageSearch {
     static func sources(_ query: String, language: String = "cs") -> [() async -> [ImageHit]] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
-        var list: [() async -> [ImageHit]] = [{ await wikipedia(q, lang: language) }]
+        var list: [() async -> [ImageHit]] = [{ await web(q, lang: language) }]
+        list.append { await wikipedia(q, lang: language) }
         if language != "en" { list.append { await wikipedia(q, lang: "en") } }
         list.append { await commons(q) }
-        list.append { await openverse(q) }
         return list
     }
 
@@ -30,7 +30,7 @@ enum ImageSearch {
         var all: [ImageHit] = []
         for src in sources(query, language: language) { all += await src() }
         var seen = Set<String>()
-        return all.filter { seen.insert($0.full.lastPathComponent.lowercased()).inserted }
+        return all.filter { seen.insert($0.full.absoluteString).inserted }
     }
 
     private static func get(_ url: URL) async -> [String: Any]? {
@@ -91,16 +91,44 @@ enum ImageSearch {
         }
     }
 
-    private static func openverse(_ q: String) async -> [ImageHit] {
-        var c = URLComponents(string: "https://api.openverse.org/v1/images/")!
-        c.queryItems = [.init(name: "q", value: q), .init(name: "page_size", value: "20"), .init(name: "mature", value: "false")]
-        guard let json = await get(c.url!), let results = json["results"] as? [[String: Any]] else { return [] }
-        return results.compactMap { r in
-            guard let full = r["url"] as? String, let fu = URL(string: full) else { return nil }
-            let thumb = (r["thumbnail"] as? String).flatMap(URL.init(string:)) ?? fu
-            return ImageHit(id: "o-\(r["id"] as? String ?? full)", thumb: thumb, full: fu,
-                            page: (r["foreign_landing_url"] as? String).flatMap(URL.init(string:)),
-                            title: r["title"] as? String ?? q, source: r["source"] as? String ?? "Openverse",
+    private static let browserUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+
+    /// Web-wide image search through DuckDuckGo Images (results come from Bing's index). No key needed:
+    /// the search page hands out a per-query token (vqd) that the JSON endpoint requires.
+    private static func web(_ q: String, lang: String) async -> [ImageHit] {
+        var page = URLComponents(string: "https://duckduckgo.com/")!
+        page.queryItems = [.init(name: "q", value: q), .init(name: "iax", value: "images"), .init(name: "ia", value: "images")]
+        var r1 = URLRequest(url: page.url!)
+        r1.setValue(browserUA, forHTTPHeaderField: "User-Agent")
+        r1.timeoutInterval = 8
+        guard let (html, _) = try? await URLSession.shared.data(for: r1),
+              let text = String(data: html, encoding: .utf8),
+              let re = try? NSRegularExpression(pattern: #"vqd=["']?([0-9-]+)"#),
+              let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let r = Range(m.range(at: 1), in: text) else { return [] }
+        let vqd = String(text[r])
+
+        var api = URLComponents(string: "https://duckduckgo.com/i.js")!
+        api.queryItems = [
+            .init(name: "l", value: lang == "en" ? "us-en" : "cz-cs"), .init(name: "o", value: "json"),
+            .init(name: "q", value: q), .init(name: "vqd", value: vqd),
+            .init(name: "f", value: ",,,,,"), .init(name: "p", value: "1"),
+        ]
+        var r2 = URLRequest(url: api.url!)
+        r2.setValue(browserUA, forHTTPHeaderField: "User-Agent")
+        r2.setValue("https://duckduckgo.com/", forHTTPHeaderField: "Referer")
+        r2.timeoutInterval = 8
+        guard let (data, resp) = try? await URLSession.shared.data(for: r2),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = obj["results"] as? [[String: Any]] else { return [] }
+        return results.prefix(60).compactMap { r in
+            guard let full = (r["image"] as? String).flatMap(URL.init(string:)),
+                  let thumb = (r["thumbnail"] as? String).flatMap(URL.init(string:)) else { return nil }
+            let pageURL = (r["url"] as? String).flatMap(URL.init(string:))
+            let host = pageURL?.host?.replacingOccurrences(of: "www.", with: "") ?? "web"
+            return ImageHit(id: "d-\(full.absoluteString)", thumb: thumb, full: full, page: pageURL,
+                            title: r["title"] as? String ?? q, source: host,
                             width: r["width"] as? Int ?? 0, height: r["height"] as? Int ?? 0)
         }
     }

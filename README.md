@@ -31,7 +31,7 @@ V panelu: **Esc** zavře, špendlík ho nechá otevřený, dole se dá ptát dá
 
 ## Soukromí
 
-Označený text nebo obrázek se posílá do Google Gemini. Google smí dotazy z bezplatné úrovně používat ke zlepšování svých služeb, proto do Kukátka neposílejte citlivé údaje. Hesla (zabezpečená pole) Kukátko nečte nikdy. Obrázky se hledají na Wikipedii, Wikimedia Commons a Openverse. Klíče zůstávají jen na vašem Macu (soubor čitelný jen pro vašeho uživatele).
+Označený text nebo obrázek se posílá do Google Gemini. Google smí dotazy z bezplatné úrovně používat ke zlepšování svých služeb, proto do Kukátka neposílejte citlivé údaje. Hesla (zabezpečená pole) Kukátko nečte nikdy. Obrázky se hledají na celém webu přes DuckDuckGo Obrázky, doplňkově na Wikipedii a Wikimedia Commons. Klíče zůstávají jen na vašem Macu (soubor čitelný jen pro vašeho uživatele).
 
 V Nastavení jde místo Gemini zapnout Claude (přes Claude Code nebo placený API klíč).
 
@@ -53,6 +53,6 @@ Swift Package bez Xcode projektu. `postav.sh` podepisuje certifikátem „Kukatk
 - `SelectionWatcher`: myš → Accessibility API (`AXSelectedText`, poloha výběru, okolní text). Chromium a Electron dostanou `AXManualAccessibility`. Když aplikace výběr nevydá, pošle se ⌘C a schránka se hned vrátí.
 - `ClipboardWatcher`: hlídá, jestli do schránky přišel obrázek.
 - `AIClient`: Gemini (`streamGenerateContent` přes SSE), Claude Code (`claude -p`), Claude API.
-- `ImageSearch`: Wikipedie, Wikimedia Commons, Openverse. Bez klíčů.
+- `ImageSearch`: celý web přes DuckDuckGo Obrázky (token `vqd` + `i.js`), Wikipedie a Wikimedia Commons. Bez klíčů.
 
 Ladění bez povolení: `Kukatko --ukazka "text" short|long|images --snimek /složka 12` otevře panel a po 12 s uloží jeho PNG.

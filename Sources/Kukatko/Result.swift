@@ -271,7 +271,7 @@ final class ResultModel: ObservableObject {
                     self.slots[slot * 10 + i] = hits
                     var seen = Set<String>()
                     self.images = self.slots.keys.sorted().flatMap { self.slots[$0]! }
-                        .filter { seen.insert($0.full.lastPathComponent.lowercased()).inserted }
+                        .filter { seen.insert($0.full.absoluteString).inserted }
                     pending -= 1
                     if finishLoading && pending == 0 { self.imagesLoading = false }
                 }
@@ -569,8 +569,8 @@ struct ImageCell: View {
 struct ImageActions: View {
     let hit: ImageHit
     var body: some View {
-        Button("Kopírovat obrázek") { Task { await ClipboardOut.copy(remote: hit.full) } }
-        Button("Uložit do Stažených") { Task { await ClipboardOut.saveToDownloads(hit.full) } }
+        Button("Kopírovat obrázek") { Task { await ClipboardOut.copy(hit: hit) } }
+        Button("Uložit do Stažených") { Task { await ClipboardOut.save(hit: hit) } }
         if let page = hit.page { Button("Otevřít zdroj") { NSWorkspace.shared.open(page) } }
         Button("Otevřít obrázek v prohlížeči") { NSWorkspace.shared.open(hit.full) }
     }
@@ -601,8 +601,8 @@ struct ImagePreview: View {
             Text("\(hit.source)\(hit.width > 0 ? " · \(hit.width)×\(hit.height)" : "")")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             HStack(spacing: 8) {
-                Button("Kopírovat") { Task { status = await ClipboardOut.copy(remote: hit.full) ? "Zkopírováno" : "Nepodařilo se stáhnout" } }
-                Button("Uložit") { Task { status = await ClipboardOut.saveToDownloads(hit.full) ? "Uloženo do Stažených" : "Nepodařilo se uložit" } }
+                Button("Kopírovat") { Task { status = await ClipboardOut.copy(hit: hit) ? "Zkopírováno" : "Nepodařilo se stáhnout" } }
+                Button("Uložit") { Task { status = await ClipboardOut.save(hit: hit) ? "Uloženo do Stažených" : "Nepodařilo se uložit" } }
                 if let page = hit.page { Button("Zdroj") { NSWorkspace.shared.open(page) } }
                 if let status { Text(status).font(.system(size: 11.5)).foregroundStyle(.secondary) }
             }
@@ -639,6 +639,19 @@ enum ClipboardOut {
         pb.writeObjects([item])
     }
 
+    /// Full image first; if the site blocks direct downloads, fall back to the search thumbnail.
+    @discardableResult
+    static func copy(hit: ImageHit) async -> Bool {
+        if await copy(remote: hit.full) { return true }
+        return await copy(remote: hit.thumb)
+    }
+
+    @discardableResult
+    static func save(hit: ImageHit) async -> Bool {
+        if await saveToDownloads(hit.full) { return true }
+        return await saveToDownloads(hit.thumb)
+    }
+
     @discardableResult
     static func copy(remote url: URL) async -> Bool {
         guard let data = await download(url), let img = NSImage(data: data) else { return false }
@@ -663,9 +676,12 @@ enum ClipboardOut {
 
     private static func download(_ url: URL) async -> Data? {
         var req = URLRequest(url: url)
-        req.setValue("Kukatko/1.0 (macOS image lookup)", forHTTPHeaderField: "User-Agent")
+        let wikimedia = url.host?.contains("wikimedia.org") == true || url.host?.contains("wikipedia.org") == true
+        req.setValue(wikimedia ? "Kukatko/1.0 (macOS image lookup)" : "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+                     forHTTPHeaderField: "User-Agent")
+        req.timeoutInterval = 15
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
-              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+              (resp as? HTTPURLResponse)?.statusCode == 200, NSImage(data: data) != nil else { return nil }
         return data
     }
 }
