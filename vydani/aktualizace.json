@@ -1,5 +1,5 @@
 {
-  "verze": "1.4",
+  "verze": "1.5",
   "zip": "https://raw.githubusercontent.com/filipskluzacek/kukatko/main/vydani/Kukatko.zip",
-  "novinky": "Nové tlačítko Proč: vysvětlí, proč to tak je a proč ne jinak. Rychlejší a spolehlivější odpovědi."
+  "novinky": "Už nepípá v Safari po tažení myší. Označený text na webu se čte spolehlivěji a bez schránky."
 }
