@@ -8,6 +8,8 @@ VERZE=$1
 NOVINKY=${2:-}
 [[ -z $VERZE ]] && { echo "Použití: ./balicek/vydej.sh 1.2 \"Co je nového\""; exit 1; }
 [[ -n $(git status --porcelain -- Sources balicek Package.swift | grep -v balicek/VERZE) ]] && { echo "Nejdřív commitni změny v kódu."; exit 1; }
+POSLEDNI=$(python3 -c "import json;print(json.load(open('vydani/aktualizace.json'))['verze'])" 2>/dev/null || echo 0)
+python3 -c "import sys;f=lambda v:[int(x) for x in v.split('.')];sys.exit(0 if f('$VERZE')>f('$POSLEDNI') else 1)" || { echo "Verze $VERZE není vyšší než poslední vydaná $POSLEDNI."; exit 1; }
 security find-identity -p codesigning | grep -q "Kukatko Code Signing" || { echo "Chybí certifikát Kukatko Code Signing – vydání musí být podepsané jím, jinak by se aktualizace odmítla."; exit 1; }
 
 echo $VERZE > balicek/VERZE
