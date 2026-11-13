@@ -86,12 +86,39 @@ final class SelectionWatcher {
               app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
             completion(nil); return
         }
-        read(app: app, allowProbe: true, allowImages: true, fallbackPoint: NSEvent.mouseLocation, completion: completion)
+        read(app: app, allowProbe: true, allowImages: true, explicit: true, fallbackPoint: NSEvent.mouseLocation, completion: completion)
+    }
+
+    /// Diagnostics (`--vyber <bundle id>`): what the AX path sees in that app right now, without probing.
+    /// The "mouse" is the middle of the app's main window.
+    func describeSelection(bundleID: String) -> String {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else { return "aplikace neběží" }
+        let appEl = AXUIElementCreateApplication(app.processIdentifier)
+        var win: CFTypeRef?, posRef: CFTypeRef?, sizeRef: CFTypeRef?
+        var point = NSEvent.mouseLocation
+        if AXUIElementCopyAttributeValue(appEl, kAXMainWindowAttribute as CFString, &win) == .success, let w = win,
+           AXUIElementCopyAttributeValue(w as! AXUIElement, kAXPositionAttribute as CFString, &posRef) == .success,
+           AXUIElementCopyAttributeValue(w as! AXUIElement, kAXSizeAttribute as CFString, &sizeRef) == .success {
+            var pos = CGPoint.zero, size = CGSize.zero
+            AXValueGetValue(posRef as! AXValue, .cgPoint, &pos)
+            AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+            point = Self.cocoaRect(fromAX: CGRect(x: pos.x + size.width / 2, y: pos.y + size.height * 0.6, width: 0, height: 0)).origin
+        }
+        var focused: CFTypeRef?
+        let role = AXUIElementCopyAttributeValue(appEl, kAXFocusedUIElementAttribute as CFString, &focused) == .success
+            ? (focused.flatMap { stringAttr($0 as! AXUIElement, kAXRoleAttribute) } ?? "?") : "bez fokusu"
+        switch readAX(pid: app.processIdentifier, point: point) {
+        case .text(let t, let r, _): return "fokus=\(role) text=\(t.prefix(80)) rect=\(r.map { "\($0)" } ?? "nil")"
+        case .emptyField: return "fokus=\(role) prazdne-pole"
+        case .nothingInPage: return "fokus=\(role) stranka-bez-oznaceni"
+        case .secure: return "fokus=\(role) heslo"
+        case .unknown: return "fokus=\(role) nevim (sondoval by ⌘C)"
+        }
     }
 
     // MARK: Reading
 
-    private func read(app: NSRunningApplication, allowProbe: Bool, allowImages: Bool = false,
+    private func read(app: NSRunningApplication, allowProbe: Bool, allowImages: Bool = false, explicit: Bool = false,
                       fallbackPoint: NSPoint, completion: @escaping (Captured?) -> Void) {
         let pid = app.processIdentifier
         let firstTimeForApp = !enabledPIDs.contains(pid)
@@ -100,7 +127,7 @@ final class SelectionWatcher {
         queue.async { [weak self] in
             guard let self else { return }
             if firstTimeForApp { self.enableWebAccessibility(pid: pid) }
-            let ax = self.readAX(pid: pid)
+            let ax = self.readAX(pid: pid, point: fallbackPoint)
             DispatchQueue.main.async {
                 switch ax {
                 case .secure:
@@ -109,7 +136,11 @@ final class SelectionWatcher {
                     completion(Captured(content: .text(text), app: app, anchor: rect ?? NSRect(origin: fallbackPoint, size: .zero), context: context))
                 case .emptyField:
                     completion(nil)
-                case .unknown:
+                case .nothingInPage where !explicit:
+                    // A drag over a map, slider or canvas, not a text selection. ⌘C here
+                    // would only make Safari beep, because it has nothing to copy.
+                    completion(nil)
+                case .unknown, .nothingInPage:
                     guard allowProbe else { completion(nil); return }
                     PasteboardProbe.copySelection(allowImages: allowImages) { content in
                         guard let content else { completion(nil); return }
@@ -123,15 +154,17 @@ final class SelectionWatcher {
     private enum AXResult {
         case text(String, NSRect?, String?)
         case emptyField
+        /// A web view (Safari, Mail, Chromium) reports through text markers that nothing is selected.
+        case nothingInPage
         case secure
         case unknown
     }
 
-    private func readAX(pid: pid_t) -> AXResult {
+    private func readAX(pid: pid_t, point: NSPoint) -> AXResult {
         let appEl = AXUIElementCreateApplication(pid)
         var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appEl, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let el = focused, CFGetTypeID(el) == AXUIElementGetTypeID() else { return .unknown }
+              let el = focused, CFGetTypeID(el) == AXUIElementGetTypeID() else { return pageSelection(pid: pid, at: point) ?? .unknown }
         let element = el as! AXUIElement
 
         let role = stringAttr(element, kAXRoleAttribute)
@@ -148,7 +181,49 @@ final class SelectionWatcher {
             // Real text inputs report "" when nothing is selected – trust that.
             if ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"].contains(role ?? "") { return .emptyField }
         }
-        return .unknown
+        return markerSelection(element, role: role) ?? pageSelection(pid: pid, at: point) ?? .unknown
+    }
+
+    /// The web area under the mouse (Safari doesn't always report the page as focused).
+    private func pageSelection(pid: pid_t, at p: NSPoint) -> AXResult? {
+        let ax = Self.axPoint(fromCocoa: p)
+        var hit: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(AXUIElementCreateApplication(pid), Float(ax.x), Float(ax.y), &hit) == .success,
+              var cur = hit else { return nil }
+        for _ in 0..<40 {
+            if stringAttr(cur, kAXRoleAttribute) == "AXWebArea" { return markerSelection(cur, role: "AXWebArea") }
+            var parent: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(cur, kAXParentAttribute as CFString, &parent) == .success,
+                  let pa = parent, CFGetTypeID(pa) == AXUIElementGetTypeID() else { return nil }
+            cur = pa as! AXUIElement
+        }
+        return nil
+    }
+
+    /// Web views don't give AXSelectedText for the page itself, but WebKit and Chromium expose the
+    /// page selection as a text-marker range (what VoiceOver reads). Side-effect free, unlike ⌘C.
+    /// nil = this element doesn't speak text markers (not a web view).
+    private func markerSelection(_ el: AXUIElement, role: String?) -> AXResult? {
+        var rangeRef: CFTypeRef?
+        switch AXUIElementCopyAttributeValue(el, "AXSelectedTextMarkerRange" as CFString, &rangeRef) {
+        case .success: break
+        case .noValue: return role == "AXWebArea" ? .nothingInPage : nil
+        default: return nil
+        }
+        guard let range = rangeRef else { return .nothingInPage }
+        var textRef: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(el, "AXStringForTextMarkerRange" as CFString, range, &textRef) == .success,
+              let text = textRef as? String else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .nothingInPage }
+        var rect: NSRect?
+        var boundsRef: CFTypeRef?
+        if AXUIElementCopyParameterizedAttributeValue(el, "AXBoundsForTextMarkerRange" as CFString, range, &boundsRef) == .success,
+           let b = boundsRef, CFGetTypeID(b) == AXValueGetTypeID() {
+            var r = CGRect.zero
+            if AXValueGetValue(b as! AXValue, .cgRect, &r), r.width > 0 || r.height > 0 { rect = Self.cocoaRect(fromAX: r) }
+        }
+        return .text(String(trimmed.prefix(12000)), rect, nil)
     }
 
     private func selectionRect(_ el: AXUIElement) -> NSRect? {

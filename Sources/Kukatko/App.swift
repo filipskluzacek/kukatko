@@ -69,6 +69,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             exit(0)
         }
 
+        // Diagnostics: Kukatko --vyber com.apple.Safari → what the AX path sees selected there (no ⌘C), then quits.
+        if let i = CommandLine.arguments.firstIndex(of: "--vyber"), i + 1 < CommandLine.arguments.count {
+            let line = selection.describeSelection(bundleID: CommandLine.arguments[i + 1]) + "\n"
+            try? line.write(toFile: NSTemporaryDirectory() + "kukatko-vyber.txt", atomically: true, encoding: .utf8)
+            exit(0)
+        }
+
         // Test hook: Kukatko --ukazka "text" [short|long|images]  /  --ukazka-obrazek /cesta.png [mode]
         let args = CommandLine.arguments
         if let i = args.firstIndex(where: { $0 == "--ukazka" || $0 == "--ukazka-obrazek" }), i + 1 < args.count {
