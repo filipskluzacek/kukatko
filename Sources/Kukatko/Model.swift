@@ -21,12 +21,13 @@ struct Captured {
 }
 
 enum ResultMode: String, CaseIterable, Identifiable {
-    case short, long, images
+    case short, long, why, images
     var id: String { rawValue }
     var title: String {
         switch self {
         case .short: return "Krátce"
         case .long: return "Dlouze"
+        case .why: return "Proč"
         case .images: return "Obrázky"
         }
     }
@@ -34,6 +35,7 @@ enum ResultMode: String, CaseIterable, Identifiable {
         switch self {
         case .short: return "text.bubble"
         case .long: return "doc.text.magnifyingglass"
+        case .why: return "questionmark.bubble"
         case .images: return "photo.on.rectangle.angled"
         }
     }

@@ -252,6 +252,9 @@ final class ServiceProvider: NSObject {
     @objc func explainLong(_ pboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         handle(pboard, mode: .long)
     }
+    @objc func explainWhy(_ pboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        handle(pboard, mode: .why)
+    }
     @objc func findImage(_ pboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         handle(pboard, mode: .images)
     }

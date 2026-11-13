@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Small floating bar that appears next to a selection: Krátce · Dlouze · Obrázek.
+/// Small floating bar that appears next to a selection: Krátce · Dlouze · Proč · Obrázek.
 @MainActor
 final class PillController {
     private var panel: PillPanel?
@@ -104,6 +104,7 @@ struct PillView: View {
             HStack(spacing: 2) {
                 PillButton(title: "Krátce", symbol: "text.bubble") { onPick(.short) }
                 PillButton(title: "Dlouze", symbol: "text.alignleft") { onPick(.long) }
+                PillButton(title: "Proč", symbol: "questionmark.bubble") { onPick(.why) }
                 PillButton(title: isImage ? "Podobné" : "Obrázek", symbol: "photo") { onPick(.images) }
             }
             .padding(4)

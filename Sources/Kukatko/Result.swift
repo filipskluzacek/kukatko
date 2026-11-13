@@ -22,7 +22,7 @@ final class ResultController: NSObject, NSWindowDelegate {
         panel = p
         p.contentView = NSHostingView(rootView: ResultView(model: m, close: { [weak self] in self?.close() }))
 
-        let size = NSSize(width: 460, height: mode == .images ? 520 : (mode == .short ? 300 : 480))
+        let size = NSSize(width: 460, height: mode == .images ? 520 : (mode == .short ? 300 : 500))
         if !p.isVisible || !m.pinned {
             p.setFrame(Self.frame(for: size, anchor: c.anchor ?? NSRect(origin: NSEvent.mouseLocation, size: .zero)), display: true)
         }

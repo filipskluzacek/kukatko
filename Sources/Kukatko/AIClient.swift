@@ -253,33 +253,121 @@ enum GeminiBackend {
     static let fastModels = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
     static let smartModels = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-flash-lite"]
 
+    /// Hedged request: ask the first model; if it hasn't started answering within `hedgeAfter`
+    /// seconds, ask the next one too. Whoever produces text first wins, the rest are cancelled.
+    /// Failed models (overloaded, quota) hand over to the next one in the list.
+    static let hedgeAfter: Double = 3
+
     static func stream(key: String, models: [String], system: String, messages: [AIMessage], json: Bool) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            let task = Task {
-                var lastError: Error = AIError.message("Gemini neodpověděl.")
-                for m in models {
-                    var yielded = false
-                    do {
-                        try await run(key: key, model: m, system: system, messages: messages, json: json) {
-                            yielded = true
-                            continuation.yield($0)
-                        }
-                        continuation.finish()
-                        return
-                    } catch GeminiError.tryNext(let err) where !yielded {
-                        lastError = err
-                        continue
-                    } catch let err as URLError where !yielded && err.code == .timedOut {
-                        lastError = AIError.message("Gemini neodpovídá. Zkuste to za chvilku znovu.")
-                        continue
-                    } catch {
-                        continuation.finish(throwing: error)
-                        return
-                    }
-                }
-                continuation.finish(throwing: lastError)
+            let race = Race(models: models) { i, onChunk in
+                try await run(key: key, model: models[i], system: system, messages: messages, json: json, yield: onChunk)
             }
-            continuation.onTermination = { _ in task.cancel() }
+            race.continuation = continuation
+            race.launchNext()
+            continuation.onTermination = { _ in race.cancelAll() }
+        }
+    }
+
+    private final class Race: @unchecked Sendable {
+        let models: [String]
+        let work: (Int, @escaping (String) -> Void) async throws -> Void
+        var continuation: AsyncThrowingStream<String, Error>.Continuation?
+        private let lock = NSLock()
+        private var tasks: [Int: Task<Void, Never>] = [:]
+        private var next = 0
+        private var winner: Int?
+        private var running = 0
+        private var finished = false
+        private var lastError: Error = AIError.message("Gemini neodpověděl. Zkuste to za chvilku znovu.")
+
+        init(models: [String], work: @escaping (Int, @escaping (String) -> Void) async throws -> Void) {
+            self.models = models
+            self.work = work
+        }
+
+        func launchNext() {
+            lock.lock()
+            guard !finished, winner == nil, next < models.count else { lock.unlock(); return }
+            let i = next
+            next += 1
+            running += 1
+            lock.unlock()
+
+            let t = Task { [self] in
+                do {
+                    try await work(i) { chunk in
+                        if self.claim(i) { self.continuation?.yield(chunk) }
+                    }
+                    self.done(i, error: nil)
+                } catch {
+                    self.done(i, error: error)
+                }
+            }
+            lock.lock(); tasks[i] = t; lock.unlock()
+
+            // Hedge: if nobody has started answering soon, bring in the next model.
+            Task { [self] in
+                try? await Task.sleep(nanoseconds: UInt64(GeminiBackend.hedgeAfter * 1_000_000_000))
+                lock.lock(); let noWinner = winner == nil && !finished; lock.unlock()
+                if noWinner { launchNext() }
+            }
+        }
+
+        /// First model to produce text becomes the winner; the others are cancelled.
+        private func claim(_ i: Int) -> Bool {
+            lock.lock()
+            if winner == nil, !finished {
+                winner = i
+                let losers = tasks.filter { $0.key != i }.map(\.value)
+                lock.unlock()
+                losers.forEach { $0.cancel() }
+                return true
+            }
+            let mine = winner == i
+            lock.unlock()
+            return mine
+        }
+
+        private func done(_ i: Int, error: Error?) {
+            lock.lock()
+            running -= 1
+            if finished { lock.unlock(); return }
+            if winner == i {
+                finished = true
+                lock.unlock()
+                if let error { continuation?.finish(throwing: error) } else { continuation?.finish() }
+                return
+            }
+            if winner != nil { lock.unlock(); return } // a loser that got cancelled
+            if let error {
+                if case GeminiError.tryNext(let e) = error { lastError = e }
+                else if let e = error as? URLError, e.code == .timedOut { lastError = AIError.message("Gemini neodpovídá. Zkuste to za chvilku znovu.") }
+                else if !(error is CancellationError) && (error as? URLError)?.code != .cancelled {
+                    // A hard error (bad key…) – report it straight away.
+                    finished = true
+                    lock.unlock()
+                    cancelAll()
+                    continuation?.finish(throwing: error)
+                    return
+                }
+            }
+            let allTried = next >= models.count
+            let stillRunning = running > 0
+            if allTried && !stillRunning {
+                finished = true
+                let err = lastError
+                lock.unlock()
+                continuation?.finish(throwing: err)
+                return
+            }
+            lock.unlock()
+            if !allTried { launchNext() }
+        }
+
+        func cancelAll() {
+            lock.lock(); let all = Array(tasks.values); finished = true; lock.unlock()
+            all.forEach { $0.cancel() }
         }
     }
 
@@ -325,7 +413,7 @@ enum GeminiBackend {
             if status == 429 || st == "RESOURCE_EXHAUSTED" {
                 throw GeminiError.tryNext(AIError.message("Bezplatný limit Gemini je na chvíli vyčerpaný. Zkuste to za minutu, případně zítra."))
             }
-            if status == 404 || status >= 500 {
+            if status == 404 || status == 400 || status >= 500 {
                 throw GeminiError.tryNext(AIError.message("Gemini je teď přetížený. Zkuste to za chvilku znovu."))
             }
             throw AIError.message("Gemini hlásí chybu \(status): \(msg)")

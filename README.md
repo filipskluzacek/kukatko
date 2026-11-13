@@ -2,7 +2,7 @@
 
 **Označte cokoli, kdekoli. Kukátko to vysvětlí.**
 
-Malá appka do horní lišty macOS. V jakékoli aplikaci označíte text nebo zkopírujete obrázek a vedle se objeví lišta **Krátce · Dlouze · Obrázek**. Odpověď se ukáže v plovoucím panelu, kde se dá ptát dál, a obrázky jdou rovnou přetáhnout, zkopírovat nebo uložit.
+Malá appka do horní lišty macOS. V jakékoli aplikaci označíte text nebo zkopírujete obrázek a vedle se objeví lišta **Krátce · Dlouze · Proč · Obrázek**. Odpověď se ukáže v plovoucím panelu, kde se dá ptát dál, a obrázky jdou rovnou přetáhnout, zkopírovat nebo uložit.
 
 AI běží v cloudu přes **Google Gemini** v bezplatné úrovni, takže se nic neplatí. Každý si jen jednou vytvoří vlastní klíč (účet Google, bez platební karty).
 
@@ -30,6 +30,8 @@ Kukátko si samo hlídá nové verze (po spuštění a pak každých pár hodin)
 | Cokoli označeného, i obrázek | **⌥⌘E** |
 | Oblast obrazovky | **⌥⌘R** |
 | Odkudkoli | pravé tlačítko → Služby → Kukátko |
+
+**Proč** u označeného výroku řekne, jestli vůbec platí, vysvětlí příčiny a mechanismus a proč nefungují jiné varianty (třeba „závodní auta jsou typicky benzínová“ → energetická hustota paliva, otáčky, proč ne nafta nebo baterie).
 
 V panelu: **Esc** zavře, špendlík ho nechá otevřený, dole se dá ptát dál (v záložce Obrázky hledat jiný dotaz).
 

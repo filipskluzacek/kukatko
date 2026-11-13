@@ -170,7 +170,7 @@ struct OnboardingView: View {
                 }
             }
             VStack(alignment: .leading, spacing: 10) {
-                Step(n: 1, text: "Označte text myší v jakékoli aplikaci – vedle se objeví lišta **Krátce · Dlouze · Obrázek**.")
+                Step(n: 1, text: "Označte text myší v jakékoli aplikaci – vedle se objeví lišta **Krátce · Dlouze · Proč · Obrázek**.")
                 Step(n: 2, text: "Zkopírujte obrázek (nebo ⌃⇧⌘4) – lišta se nabídne taky.")
                 Step(n: 3, text: "**⌥⌘E** vysvětlí, co je zrovna označené, **⌥⌘R** vybranou oblast obrazovky.")
             }

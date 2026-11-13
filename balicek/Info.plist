@@ -32,6 +32,13 @@
 			<key>NSSendFileTypes</key><array><string>public.image</string></array>
 		</dict>
 		<dict>
+			<key>NSMenuItem</key><dict><key>default</key><string>Kukátko: Proč?</string></dict>
+			<key>NSMessage</key><string>explainWhy</string>
+			<key>NSPortName</key><string>Kukatko</string>
+			<key>NSSendTypes</key><array><string>public.utf8-plain-text</string><string>public.tiff</string><string>public.png</string></array>
+			<key>NSSendFileTypes</key><array><string>public.image</string></array>
+		</dict>
+		<dict>
 			<key>NSMenuItem</key><dict><key>default</key><string>Kukátko: Najít obrázek</string></dict>
 			<key>NSMessage</key><string>findImage</string>
 			<key>NSPortName</key><string>Kukatko</string>

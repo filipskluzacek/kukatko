@@ -26,6 +26,23 @@ enum Prompts {
             instruction = c.content.isImage
                 ? "Řekni krátce, co je na obrázku a co to znamená – nejvýš 3 věty, bez nadpisů a odrážek."
                 : "Vysvětli krátce – nejvýš 3 věty, bez nadpisů a odrážek."
+        case .why:
+            instruction = c.content.isImage
+                ? """
+                  Vysvětli, PROČ to na obrázku je nebo vypadá právě takhle (tvar, konstrukce, barva, uspořádání, chování). \
+                  Nejdřív jednou větou, co na obrázku je. Pak nadpis „### Proč“ a pod ním konkrétní důvody a mechanismus \
+                  (fyzika, funkce, biologie, ekonomika, historie…). Pak nadpis „### Proč ne jinak“ a hlavní alternativy, \
+                  u každé proč se nepoužívá nebo nefunguje tak dobře. Odrážky, do 300 slov.
+                  """
+                : """
+                  Vysvětli, PROČ to tak je. Struktura:
+                  1. První věta: platí to? (ano / jen částečně / ne). Když to neplatí, uveď, jak to je doopravdy, a vysvětluj to správné.
+                  2. Nadpis přesně „### Proč“ a pod ním konkrétní příčiny a mechanismus (fyzikální, technické, ekonomické, \
+                  historické, pravidla, biologie…). Kde to pomůže, uveď konkrétní čísla, srovnání nebo příklad.
+                  3. Nadpis přesně „### Proč ne jinak“ a hlavní alternativy, u každé krátce, proč nefunguje nebo se nepoužívá tak často.
+                  4. Případně nadpis „### Výjimky“: kdy to neplatí.
+                  Odrážky, do 300 slov. Žádné obecné řeči, jen konkrétní důvody.
+                  """
         case .long, .images:
             instruction = c.content.isImage
                 ? "Popiš a vysvětli obrázek podrobně: co na něm je, kontext, zajímavosti, případný text v obraze přelož. Strukturuj krátkými nadpisy (###) a odrážkami, do 350 slov."
