@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let hotkeys = HotkeyCenter()
     let pill = PillController()
     let result = ResultController()
+    let updater = Updater()
     private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
 
@@ -52,6 +53,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         hotkeys.register(id: 2, keyCode: KeyCode.r, modifiers: [.command, .option]) { [weak self] in
             self?.captureScreenRegion()
+        }
+
+        // Test hook: install the published update right away without asking.
+        if CommandLine.arguments.contains("--aktualizuj-ted") {
+            updater.check(userInitiated: false, installWithoutAsking: true)
+            return
         }
 
         // Diagnostics: Kukatko --stav  → prints permission/key state and quits.
@@ -96,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !Permissions.accessibilityGranted || (Settings.shared.backend == .gemini && Settings.shared.geminiKey == nil) {
             showOnboarding()
         }
+        updater.start()
     }
 
     // MARK: Status bar
@@ -114,6 +122,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        if let r = updater.available {
+            let u = NSMenuItem(title: "⬆︎ Aktualizovat na verzi \(r.version)", action: #selector(menuInstallUpdate), keyEquivalent: "")
+            u.target = self
+            menu.addItem(u)
+            menu.addItem(.separator())
+        }
         let a = NSMenuItem(title: "Vysvětlit označené", action: #selector(menuCapture), keyEquivalent: "e")
         a.keyEquivalentModifierMask = [.command, .option]
         a.target = self
@@ -142,6 +156,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             p.target = self
             menu.addItem(p)
         }
+        let v = NSMenuItem(title: "Kukátko \(Updater.currentVersion)", action: nil, keyEquivalent: "")
+        v.isEnabled = false
+        menu.addItem(v)
+        let up = NSMenuItem(title: "Zkontrolovat aktualizace…", action: #selector(menuCheckUpdates), keyEquivalent: "")
+        up.target = self
+        menu.addItem(up)
         let s = NSMenuItem(title: "Nastavení…", action: #selector(showSettings), keyEquivalent: ",")
         s.target = self
         menu.addItem(s)
@@ -164,6 +184,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func togglePillSelection() { Settings.shared.pillOnSelection.toggle() }
     @objc private func togglePillImage() { Settings.shared.pillOnImageCopy.toggle() }
     @objc private func menuOnboarding() { showOnboarding() }
+    @objc private func menuCheckUpdates() { updater.check(userInitiated: true) }
+    @objc private func menuInstallUpdate() { updater.installAvailable() }
 
     // MARK: Actions
 

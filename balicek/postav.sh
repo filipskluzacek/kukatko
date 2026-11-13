@@ -12,7 +12,8 @@ BIN=$(swift build -c release --show-bin-path)/Kukatko
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Kukatko"
-sed "s/__BUILD__/$(date +%Y%m%d%H%M)/" balicek/Info.plist > "$APP/Contents/Info.plist"
+VERZE=$(cat balicek/VERZE)
+sed -e "s/__BUILD__/$(date +%Y%m%d%H%M)/" -e "s/__VERZE__/$VERZE/" balicek/Info.plist > "$APP/Contents/Info.plist"
 
 # Ikona (jen když chybí nebo se změnil zdroj)
 ICNS=$OUT/AppIcon.icns
