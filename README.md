@@ -8,7 +8,7 @@ AI běží v cloudu přes **Google Gemini** v bezplatné úrovni, takže se nic 
 
 ## Instalace
 
-1. Stáhněte **Kukatko.zip** z [Releases](../../releases/latest) a rozbalte ho.
+1. Stáhněte **[Kukatko.zip](https://github.com/filipskluzacek/kukatko/raw/main/vydani/Kukatko.zip)** a rozbalte ho.
 2. Přetáhněte **Kukátko** do složky Aplikace a otevřete ho.
 3. macOS napíše, že aplikaci nejde ověřit (není z App Storu). Otevřete **Nastavení systému → Soukromí a zabezpečení**, sjeďte dolů a u Kukátka klikněte na **Přesto otevřít**.
 4. Kukátko vás provede zbytkem:
@@ -16,6 +16,10 @@ AI běží v cloudu přes **Google Gemini** v bezplatné úrovni, takže se nic 
    - **Zpřístupnění**: zapněte Kukátko v *Nastavení systému → Soukromí a zabezpečení → Zpřístupnění*. Díky tomu vidí, co máte označené.
 
 Potřebujete macOS 26 nebo novější a Mac s Apple Silicon (M1 a novější).
+
+## Aktualizace
+
+Kukátko si samo hlídá nové verze (po spuštění a pak každých pár hodin). Když nějaká vyjde, nabídne **Aktualizovat**: stáhne ji, ověří, že je podepsaná stejně jako ta vaše, vymění se a znovu se spustí. Povolení i klíč zůstanou. Ručně: ikona v horní liště → **Zkontrolovat aktualizace…**
 
 ## Jak se používá
 
@@ -44,9 +48,12 @@ V Nastavení jde místo Gemini zapnout Claude (přes Claude Code nebo placený A
 ## Pro vývojáře
 
 ```bash
-./balicek/postav.sh            # dist/Kukatko.app + dist/Kukatko.zip
-./balicek/postav.sh --instaluj # a rovnou do /Applications
+./balicek/postav.sh                               # dist/Kukatko.app + dist/Kukatko.zip
+./balicek/postav.sh --instaluj                    # a rovnou do /Applications
+./balicek/vydej.sh 1.3 "Co je nového"             # vydání: zip do vydani/, aktualizace.json, commit + push
 ```
+
+Nainstalovaná Kukátka čtou `vydani/aktualizace.json` a nainstalují jen zip podepsaný stejným certifikátem. Proto se vydání smí sestavit jen na Macu, kde je „Kukatko Code Signing“.
 
 Swift Package bez Xcode projektu. `postav.sh` podepisuje certifikátem „Kukatko Code Signing“ z Klíčenky, když existuje, aby povolení Zpřístupnění vydrželo i nová sestavení. Jinak podepíše ad-hoc.
 
