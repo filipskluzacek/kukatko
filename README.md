@@ -52,7 +52,7 @@ V Nastavení jde místo Gemini zapnout Claude (přes Claude Code nebo placený A
 ```bash
 ./balicek/postav.sh                               # dist/Kukatko.app + dist/Kukatko.zip
 ./balicek/postav.sh --instaluj                    # a rovnou do /Applications
-./balicek/vydej.sh 1.3 "Co je nového"             # vydání: zip do vydani/, aktualizace.json, commit + push
+./balicek/vydej.sh X.Y "Co je nového"             # vydání (X.Y = vyšší než poslední v vydani/aktualizace.json): zip do vydani/, aktualizace.json, commit + push
 ```
 
 Nainstalovaná Kukátka čtou `vydani/aktualizace.json` a nainstalují jen zip podepsaný stejným certifikátem. Proto se vydání smí sestavit jen na Macu, kde je „Kukatko Code Signing“.
